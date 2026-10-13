@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bridge Horror House</title>
+  <style>
+    :root {
+      --shake-x: 0px;
+      --shake-y: 0px;
+      --danger: 0;
+      --ink: #e7dcc8;
+      --dim: rgba(231, 220, 200, 0.62);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: var(--ink);
+      font-family: "Palatino Linotype", Palatino, Georgia, serif;
+      user-select: none;
+      cursor: none;
+    }
+
+    body.menu { cursor: pointer; }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      transform: translate(var(--shake-x), var(--shake-y));
+      background: #000;
+    }
+
+    #stage canvas { display: block; width: 100%; height: 100%; }
+
+    #vignette, #grain, #flash, #danger {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      transform: translate(var(--shake-x), var(--shake-y));
+    }
+
+    #vignette {
+      background:
+        radial-gradient(ellipse at center, transparent 32%, rgba(0, 0, 0, 0.55) 78%, rgba(0, 0, 0, 0.92) 100%);
+      box-shadow: inset 0 0 180px 40px rgba(0, 0, 0, 0.72);
+      z-index: 4;
+    }
+
+    #danger {
+      z-index: 5;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(90, 0, 0, 0.55) 100%);
+      opacity: var(--danger);
+      mix-blend-mode: multiply;
+    }
+
+    #grain {
+      z-index: 6;
+      opacity: 0.16;
+      mix-blend-mode: overlay;
+    }
+
+    #grain canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #flash {
+      z-index: 7;
+      opacity: 0;
+      background: #fff;
+    }
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+      transform: translate(var(--shake-x), var(--shake-y));
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+
+    body.playing #hud { opacity: 1; }
+
+    #objective {
+      position: absolute;
+      top: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-size: 13px;
+      color: var(--dim);
+      text-shadow: 0 2px 8px #000;
+      text-align: center;
+      max-width: 80vw;
+    }
+
+    #keys {
+      position: absolute;
+      top: 54px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #keys i {
+      width: 10px;
+      height: 10px;
+      border: 1px solid rgba(198, 161, 90, 0.45);
+      transform: rotate(45deg);
+      display: block;
+    }
+
+    #keys i.on {
+      background: #c6a15a;
+      box-shadow: 0 0 8px rgba(198, 161, 90, 0.8);
+      border-color: #e6c98a;
+    }
+
+    #key-count {
+      margin-left: 6px;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      color: rgba(198, 161, 90, 0.8);
+    }
+
+    #crosshair {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      transform: translate(-50%, -50%);
+    }
+
+    #crosshair::before, #crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(231, 220, 200, 0.45);
+    }
+
+    #crosshair::before { left: 8px; top: 0; width: 1px; height: 18px; }
+    #crosshair::after { top: 8px; left: 0; height: 1px; width: 18px; }
+
+    #crosshair.hot::before, #crosshair.hot::after {
+      background: rgba(255, 236, 210, 0.9);
+    }
+
+    #burn {
+      position: absolute;
+      left: 50%;
+      top: calc(50% - 28px);
+      width: 90px;
+      height: 3px;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.12);
+      opacity: 0;
+      transition: opacity 0.15s linear;
+    }
+
+    #burn.on { opacity: 1; }
+
+    #burn-fill {
+      height: 100%;
+      width: 0%;
+      background: #f2f2f2;
+      box-shadow: 0 0 8px rgba(255, 80, 60, 0.8);
+    }
+
+    #prompt {
+      position: absolute;
+      left: 50%;
+      bottom: 18%;
+      transform: translateX(-50%);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-size: 13px;
+      color: var(--ink);
+      text-shadow: 0 2px 6px #000;
+      min-height: 1.2em;
+    }
+
+    #battery {
+      position: absolute;
+      left: 28px;
+      bottom: 28px;
+      width: 180px;
+    }
+
+    #battery span {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.28em;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+
+    #battery .bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(231, 220, 200, 0.25);
+    }
+
+    #battery-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #8a6a32, #e6c98a);
+      transform-origin: left center;
+    }
+
+    #battery.low #battery-fill {
+      background: linear-gradient(90deg, #4a1010, #c4442a);
+    }
+
+    #battery.sputter #battery-fill {
+      animation: sputter 0.12s steps(2) infinite;
+    }
+
+    @keyframes sputter {
+      50% { opacity: 0.35; }
+    }
+
+    #hint {
+      position: absolute;
+      bottom: 28px;
+      right: 28px;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(231, 220, 200, 0.4);
+      text-align: right;
+      transition: opacity 1s ease;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px;
+    }
+
+    .overlay.hidden { display: none; }
+
+    #title-screen {
+      background:
+        radial-gradient(ellipse at center, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.78) 72%, #000 100%);
+      cursor: pointer;
+    }
+
+    .eyebrow {
+      letter-spacing: 0.55em;
+      font-size: 12px;
+      color: var(--dim);
+      margin: 0 0 18px;
+    }
+
+    h1 {
+      font-weight: normal;
+      font-size: clamp(48px, 8vw, 92px);
+      line-height: 0.88;
+      letter-spacing: 0.08em;
+      margin: 0;
+      text-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    }
+
+    h1 em {
+      font-style: italic;
+      color: #c6a15a;
+    }
+
+    .tag {
+      margin: 22px 0 36px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      font-size: 13px;
+      color: var(--dim);
+    }
+
+    button {
+      font-family: inherit;
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid rgba(231, 220, 200, 0.45);
+      letter-spacing: 0.42em;
+      padding: 14px 36px;
+      font-size: 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+
+    button:hover { background: rgba(231, 220, 200, 0.08); }
+
+    .fine {
+      margin-top: 28px;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(231, 220, 200, 0.45);
+      line-height: 1.7;
+    }
+
+    #note-screen {
+      background: rgba(0, 0, 0, 0.72);
+      cursor: pointer;
+      z-index: 22;
+    }
+
+    .paper {
+      width: min(520px, 88vw);
+      background: #d7c7a4;
+      color: #2a2118;
+      padding: 42px 40px 36px;
+      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.65);
+      transform: rotate(-0.4deg);
+    }
+
+    .paper h2 {
+      font-weight: normal;
+      font-style: italic;
+      margin: 0 0 16px;
+      letter-spacing: 0.04em;
+    }
+
+    .paper p {
+      margin: 0;
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 18px;
+    }
+
+    .paper .close {
+      display: block;
+      margin-top: 22px;
+      letter-spacing: 0.22em;
+      font-size: 11px;
+      text-transform: uppercase;
+      opacity: 0.6;
+    }
+
+    #death-screen, #win-screen {
+      background: rgba(0, 0, 0, 0.88);
+      z-index: 30;
+      cursor: pointer;
+    }
+
+    #death-screen h2, #win-screen h2 {
+      font-size: clamp(36px, 6vw, 68px);
+      font-weight: normal;
+      letter-spacing: 0.16em;
+      margin: 0 0 12px;
+    }
+
+    #death-screen h2 { color: #e8e0d4; }
+
+    #win-screen h2 { color: #e6dcc8; }
+
+    .stats {
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-size: 13px;
+      color: var(--dim);
+      margin: 8px 0 28px;
+      line-height: 1.8;
+    }
+
+    #jumpscare {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 28;
+      pointer-events: none;
+      opacity: 0;
+      filter: contrast(1.35) saturate(0.65);
+    }
+
+    #jumpscare.on { animation: scare 0.9s ease-out forwards; }
+
+    @keyframes scare {
+      0% { opacity: 0; transform: scale(1.45); }
+      10% { opacity: 1; transform: scale(1.02); }
+      72% { opacity: 1; transform: scale(1.1); }
+      100% { opacity: 0; transform: scale(1.18); }
+    }
+
+    #pause {
+      position: fixed;
+      inset: 0;
+      z-index: 18;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.45);
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    #pause.hidden { display: none; }
+  </style>
+</head>
+<body class="menu">
+  <div id="stage"></div>
+  <div id="vignette"></div>
+  <div id="danger"></div>
+  <div id="grain"></div>
+  <div id="flash"></div>
+  <canvas id="jumpscare" width="512" height="512"></canvas>
+
+  <div id="hud">
+    <div id="objective">Find the three brass keys.</div>
+    <div id="keys">
+      <i></i><i></i><i></i>
+      <span id="key-count">0/3</span>
+    </div>
+    <div id="crosshair"></div>
+    <div id="burn"><div id="burn-fill"></div></div>
+    <div id="prompt"></div>
+    <div id="battery">
+      <span>TORCH</span>
+      <div class="bar"><div id="battery-fill"></div></div>
+    </div>
+    <div id="hint">WASD move · Shift sprint · E use · F light</div>
+  </div>
+
+  <div id="title-screen" class="overlay">
+    <p class="eyebrow">You wake in the dark</p>
+    <h1>BRIDGE<br><em>HORROR</em><br>HOUSE</h1>
+    <p class="tag">You are not alone in here.</p>
+    <button id="start-btn" type="button">Enter</button>
+    <p class="fine">
+      Headphones. A dark room.<br>
+      WASD to move · Mouse to look · Shift sprint<br>
+      E to use · F to toggle the light
+    </p>
+  </div>
+
+  <div id="note-screen" class="overlay hidden">
+    <div class="paper">
+      <h2 id="note-title"></h2>
+      <p id="note-body"></p>
+      <span class="close">Click to fold it away</span>
+    </div>
+  </div>
+
+  <div id="death-screen" class="overlay hidden">
+    <p class="eyebrow">The house keeps you</p>
+    <h2>IT FOUND YOU</h2>
+    <p class="stats" id="death-stats"></p>
+    <button id="retry-btn" type="button">Try again</button>
+  </div>
+
+  <div id="win-screen" class="overlay hidden">
+    <p class="eyebrow">The night lets go</p>
+    <h2>YOU ESCAPED</h2>
+    <p class="stats" id="win-stats"></p>
+    <button id="again-btn" type="button">Return</button>
+  </div>
+
+  <div id="pause" class="hidden">Click to resume</div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
