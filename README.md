@@ -1,6 +1,6 @@
 # Run
 
-cd <model>/bridge-horror-house
+cd model/bridge-horror-house (replace "model" with available models in directory)
 
 npm run dev
 
