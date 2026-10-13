@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="data:," />
+<title>Bridge Horror House</title>
+<style>
+  :root { --blood:#8a0f0f; --bone:#cfc6b8; --dim:#6d675f; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#000; overflow:hidden; color:var(--bone);
+    font-family: Georgia, 'Times New Roman', serif; user-select:none; -webkit-user-select:none; }
+  #app { position:fixed; inset:0; }
+  #app canvas { display:block; width:100%; height:100%; }
+  .layer { position:fixed; inset:0; pointer-events:none; }
+  .hidden { display:none !important; }
+
+  /* ---------- post atmosphere ---------- */
+  #vignette { z-index:20;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 38%, rgba(0,0,0,.50) 72%, rgba(0,0,0,.94) 100%); }
+  #grainWrap { z-index:21; overflow:hidden; }
+  #grain { position:absolute; inset:-100px; opacity:.085; background-size:256px 256px;
+    animation: grainShift .42s steps(1) infinite; }
+  @keyframes grainShift {
+    0%{transform:translate(0,0)} 12%{transform:translate(-37px,21px)} 25%{transform:translate(29px,-48px)}
+    37%{transform:translate(-61px,-12px)} 50%{transform:translate(44px,57px)} 62%{transform:translate(-19px,-66px)}
+    75%{transform:translate(70px,9px)} 87%{transform:translate(-52px,38px)} 100%{transform:translate(0,0)} }
+  #flash { z-index:22; opacity:0; background:#fff; }
+  #darkness { z-index:19; opacity:0; background:#000; }
+
+  /* ---------- HUD ---------- */
+  #hud { z-index:25; }
+  #objective { position:absolute; top:22px; left:26px; max-width:46ch; font-size:15px; line-height:1.45;
+    letter-spacing:.04em; color:#b8afa0; text-shadow:0 0 8px #000, 0 0 2px #000; transition:opacity 1.2s; }
+  #objective .label { display:block; font-size:10px; letter-spacing:.35em; color:var(--dim); text-transform:uppercase; margin-bottom:3px; }
+  #keys { position:absolute; top:20px; right:28px; display:flex; gap:10px; align-items:center; }
+  #keys .k { width:34px; height:34px; opacity:.22; filter:grayscale(1) brightness(.7); transition:all .6s; }
+  #keys .k.got { opacity:1; filter:drop-shadow(0 0 7px #d9a53a) drop-shadow(0 0 2px #fff3c0); }
+  #keys .k svg { width:100%; height:100%; }
+  #battery { position:absolute; left:26px; bottom:26px; width:190px; }
+  #battery .label { font-size:10px; letter-spacing:.35em; color:var(--dim); text-transform:uppercase; margin-bottom:5px; }
+  #battery .bar { height:9px; border:1px solid #4a453e; background:rgba(0,0,0,.55); padding:1px; }
+  #battery .fill { height:100%; width:100%; background:linear-gradient(90deg,#9c7a2e,#e6c872); transition:background .3s; }
+  #battery.low .fill { background:linear-gradient(90deg,#6e1010,#b52a2a); animation: lowPulse .9s infinite; }
+  @keyframes lowPulse { 50% { opacity:.35; } }
+  #crosshair { position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px 0 0 -2px; border-radius:50%;
+    background:rgba(230,225,215,.55); box-shadow:0 0 4px rgba(0,0,0,.9); }
+  #burn { position:absolute; left:50%; top:calc(50% - 46px); width:120px; margin-left:-60px; height:5px;
+    border:1px solid rgba(255,235,200,.45); background:rgba(0,0,0,.5); opacity:0; transition:opacity .25s; }
+  #burn.on { opacity:1; }
+  #burn .fill { height:100%; width:0; background:linear-gradient(90deg,#ff7a1a,#fff2c0); box-shadow:0 0 10px #ffb347; }
+  #prompt { position:absolute; left:50%; top:calc(50% + 34px); transform:translateX(-50%); font-size:15px;
+    letter-spacing:.12em; color:#d8d0c2; text-shadow:0 0 8px #000, 0 0 3px #000; opacity:0; transition:opacity .15s; white-space:nowrap; }
+  #prompt.on { opacity:1; }
+  #prompt b { color:#fff; border:1px solid #8c8478; padding:0 6px; margin-right:8px; background:rgba(0,0,0,.45); }
+  #prompt .hold { display:inline-block; width:70px; height:3px; background:#333; margin-left:10px; vertical-align:middle; }
+  #prompt .hold i { display:block; height:100%; width:0; background:#e6c872; }
+  #caption { position:absolute; left:50%; bottom:90px; transform:translateX(-50%); max-width:60ch; text-align:center;
+    font-style:italic; font-size:17px; letter-spacing:.05em; color:#c9c0b0; text-shadow:0 0 10px #000, 0 0 3px #000;
+    opacity:0; transition:opacity 1s; }
+  #caption.on { opacity:1; transition:opacity .25s; }
+
+  /* ---------- note ---------- */
+  #note { position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.72); }
+  #note .paper { width:min(560px,86vw); padding:44px 48px 36px; color:#2b2218; transform:rotate(-1.2deg);
+    background: radial-gradient(ellipse at 30% 20%, #cbb98f 0%, #b39d6e 55%, #8c7548 100%);
+    box-shadow: 0 0 70px #000, inset 0 0 70px rgba(70,40,10,.55); font-family:'Segoe Script','Brush Script MT',cursive,Georgia; }
+  #note h2 { margin:0 0 14px; font-size:22px; letter-spacing:.06em; font-weight:normal; text-decoration:underline; text-decoration-color:rgba(70,30,10,.4); }
+  #note p { margin:0 0 12px; font-size:17px; line-height:1.55; white-space:pre-wrap; }
+  #note .hint { margin-top:18px; font-size:12px; letter-spacing:.2em; color:#5a4930; text-transform:uppercase; font-family:Georgia,serif; }
+
+  /* ---------- screens ---------- */
+  .screen { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; }
+  #title { background: radial-gradient(ellipse at center, rgba(0,0,0,.35) 0%, rgba(0,0,0,.82) 70%, #000 100%); cursor:pointer; }
+  #title h1 { margin:0; font-weight:normal; font-size:clamp(40px,8vw,104px); letter-spacing:.16em; text-transform:uppercase;
+    color:#b9b0a2; text-shadow:0 0 28px rgba(150,20,20,.45), 0 0 3px #000; animation: titleFlicker 6.5s infinite; }
+  #title h1 span { color:var(--blood); text-shadow:0 0 30px rgba(190,20,20,.7); }
+  @keyframes titleFlicker {
+    0%,18%,22%,62%,64%,100%{opacity:1} 19%{opacity:.25} 20%{opacity:.9} 21%{opacity:.1} 63%{opacity:.4} }
+  #title .sub { margin:14px 0 46px; font-size:15px; letter-spacing:.5em; color:var(--dim); text-transform:uppercase; }
+  #startBtn { font-family:inherit; font-size:18px; letter-spacing:.4em; text-transform:uppercase; color:#d6cdbd; background:transparent;
+    border:1px solid #6d675f; padding:16px 44px; cursor:pointer; transition:all .25s; }
+  #startBtn:hover:not(:disabled) { color:#fff; border-color:#a22; box-shadow:0 0 28px rgba(160,20,20,.55), inset 0 0 18px rgba(160,20,20,.3); }
+  #startBtn:disabled { opacity:.35; cursor:wait; }
+  #title .controls { margin-top:44px; font-size:13px; line-height:2; letter-spacing:.16em; color:#7a746b; text-transform:uppercase; }
+  #title .controls b { color:#b4ab9b; font-weight:normal; border:1px solid #4a453e; padding:1px 7px; margin:0 3px; }
+  #title .warn { margin-top:26px; font-size:12px; letter-spacing:.3em; color:#5d3a3a; text-transform:uppercase; }
+
+  #pause { background:rgba(0,0,0,.78); cursor:pointer; }
+  #pause h2, #death h2, #win h2 { margin:0 0 10px; font-weight:normal; font-size:clamp(34px,6vw,72px); letter-spacing:.2em; text-transform:uppercase; }
+  #pause p { color:var(--dim); letter-spacing:.3em; text-transform:uppercase; font-size:14px; }
+
+  #jumpscare { position:fixed; inset:0; z-index:60; background:#000; }
+  #jumpscare canvas { width:100%; height:100%; display:block; }
+  #jumpscare.go canvas { animation: jsShake .06s infinite; }
+  @keyframes jsShake { 0%{transform:translate(-10px,6px) scale(1.05)} 33%{transform:translate(12px,-8px) scale(1.09)}
+    66%{transform:translate(-6px,-12px) scale(1.04)} 100%{transform:translate(9px,10px) scale(1.08)} }
+
+  #death { background:rgba(0,0,0,.94); z-index:55; }
+  #death h2 { color:var(--blood); text-shadow:0 0 30px rgba(190,20,20,.6); }
+  #death p, #win p { color:#8a8378; letter-spacing:.2em; font-size:15px; margin:6px 0; }
+  .btn { margin-top:34px; font-family:inherit; font-size:16px; letter-spacing:.4em; text-transform:uppercase; color:#d6cdbd;
+    background:transparent; border:1px solid #6d675f; padding:14px 38px; cursor:pointer; transition:all .25s; pointer-events:auto; }
+  .btn:hover { color:#fff; border-color:#a22; box-shadow:0 0 24px rgba(160,20,20,.5); }
+  #win { background:radial-gradient(ellipse at center, #1d2431 0%, #05070b 80%); z-index:55; }
+  #win h2 { color:#d9e3f0; text-shadow:0 0 30px rgba(150,190,255,.45); }
+  #win .stat { font-size:22px; color:#b6c3d6; letter-spacing:.18em; margin:8px 0; }
+  #win .stat b { color:#fff; font-weight:normal; }
+  #loading { position:absolute; bottom:40px; font-size:12px; letter-spacing:.4em; color:var(--dim); text-transform:uppercase; }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="layer" id="darkness"></div>
+  <div class="layer" id="vignette"></div>
+  <div class="layer" id="grainWrap"><div id="grain"></div></div>
+  <div class="layer" id="flash"></div>
+
+  <div class="layer hidden" id="hud">
+    <div id="objective"><span class="label">Objective</span><span id="objText">Find a way out.</span></div>
+    <div id="keys">
+      <div class="k" data-k="0"><svg viewBox="0 0 64 64"><g fill="#d9a53a" stroke="#6b4a10" stroke-width="2"><circle cx="19" cy="32" r="12"/><circle cx="19" cy="32" r="5" fill="#000"/><rect x="29" y="29" width="30" height="6" rx="1"/><rect x="48" y="35" width="5" height="10"/><rect x="39" y="35" width="5" height="7"/></g></svg></div>
+      <div class="k" data-k="1"><svg viewBox="0 0 64 64"><g fill="#d9a53a" stroke="#6b4a10" stroke-width="2"><circle cx="19" cy="32" r="12"/><circle cx="19" cy="32" r="5" fill="#000"/><rect x="29" y="29" width="30" height="6" rx="1"/><rect x="48" y="35" width="5" height="10"/><rect x="39" y="35" width="5" height="7"/></g></svg></div>
+      <div class="k" data-k="2"><svg viewBox="0 0 64 64"><g fill="#d9a53a" stroke="#6b4a10" stroke-width="2"><circle cx="19" cy="32" r="12"/><circle cx="19" cy="32" r="5" fill="#000"/><rect x="29" y="29" width="30" height="6" rx="1"/><rect x="48" y="35" width="5" height="10"/><rect x="39" y="35" width="5" height="7"/></g></svg></div>
+    </div>
+    <div id="battery"><div class="label">Torch <span id="batPct">100</span>%</div><div class="bar"><div class="fill" id="batFill"></div></div></div>
+    <div id="crosshair"></div>
+    <div id="burn"><div class="fill" id="burnFill"></div></div>
+    <div id="prompt"><b>E</b><span id="promptText"></span><span class="hold hidden" id="promptHold"><i></i></span></div>
+    <div id="caption"></div>
+  </div>
+
+  <div id="note" class="hidden"><div class="paper"><h2 id="noteTitle"></h2><p id="noteBody"></p><div class="hint">[E] or [Esc] — put it down</div></div></div>
+
+  <div id="title" class="screen">
+    <h1>Bridge <span>Horror</span> House</h1>
+    <div class="sub">Find the keys &nbsp;·&nbsp; Survive the dark</div>
+    <button id="startBtn" disabled>Opening the house…</button>
+    <div class="controls">
+      <b>W</b><b>A</b><b>S</b><b>D</b> move &nbsp; <b>Shift</b> sprint &nbsp; <b>E</b> interact &nbsp; <b>F</b> flashlight<br/>
+      Hold your beam on <i>him</i> to burn him back
+    </div>
+    <div class="warn">Headphones strongly recommended · Play in a dark room</div>
+  </div>
+
+  <div id="pause" class="screen hidden"><h2>Paused</h2><p>Click to return to the dark</p></div>
+
+  <div id="jumpscare" class="hidden"><canvas id="jsCanvas" width="640" height="640"></canvas></div>
+
+  <div id="death" class="screen hidden">
+    <h2>It found you</h2>
+    <p>The house keeps what it catches.</p>
+    <p id="deathStats"></p>
+    <button class="btn" id="retryBtn">Wake up again</button>
+  </div>
+
+  <div id="win" class="screen hidden">
+    <h2>You escaped</h2>
+    <p>The rain hits your face. The door closes behind you. Do not look back.</p>
+    <div class="stat">Time survived: <b id="winTime">0:00</b></div>
+    <div class="stat">Times banished: <b id="winBanish">0</b></div>
+    <button class="btn" id="againBtn">Enter again</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
